@@ -14,9 +14,9 @@ from enum import Enum
 TOKEN = os.environ.get('DISCORD_TOKEN')  # Remplacez par votre token Discord
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = discord.Bot(intents=intents)
 
-# Enums et classes de données
+# Enums et classes de données (identiques)
 class SkillCategory(Enum):
     ATTAQUE = "Attaque"
     BONUS = "Bonus"
@@ -45,7 +45,7 @@ class Skill:
     name: str
     effect: str
     category: SkillCategory
-    cooldown: int = 0  # Cooldown actuel en combat
+    cooldown: int = 0
 
     def get_power_cost(self) -> float:
         costs = {
@@ -112,7 +112,6 @@ class Character:
             self.level += 1
 
     def get_talent_advantage(self, opponent_talent: Talent) -> float:
-        # Yeux de Dieu > Dieu de la Vitesse > Inégalé > Forteresse > Overpowered > Yeux de Dieu
         advantages = {
             (Talent.YEUX_DIEU, Talent.DIEU_VITESSE): 1.1,
             (Talent.DIEU_VITESSE, Talent.INEGALE): 1.1,
@@ -128,7 +127,7 @@ class Character:
         else:
             return 1.0
 
-# Classes pour gérer les combats
+# Classes pour gérer les combats (identiques)
 class CombatSession:
     def __init__(self, player1_id: int, player2_id: int, channel_id: int):
         self.player1_id = player1_id
@@ -140,7 +139,7 @@ class CombatSession:
         self.player2_objective = None
         self.current_turn = None
         self.turn_count = 0
-        self.rps_results = {}  # Résultats pierre-feuille-ciseaux
+        self.rps_results = {}
         self.combat_started = False
 
     def both_players_ready(self) -> bool:
@@ -158,7 +157,7 @@ class CombatSession:
     def get_opponent_character(self, player_id: int) -> Character:
         return self.player2_character if player_id == self.player1_id else self.player1_character
 
-# Système de base de données
+# Système de base de données (identique)
 class Database:
     def __init__(self):
         self.conn = sqlite3.connect('discord_rpg.db')
@@ -167,7 +166,6 @@ class Database:
     def create_tables(self):
         cursor = self.conn.cursor()
 
-        # Table des personnages
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS characters (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -183,7 +181,6 @@ class Database:
             )
         """)
 
-        # Table des compétences
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS skills (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -201,7 +198,6 @@ class Database:
         cursor = self.conn.cursor()
 
         try:
-            # Sauvegarder le personnage
             cursor.execute("""
                 INSERT INTO characters (name, owner_id, hp, max_hp, power_gauge, talent, level, experience)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -210,7 +206,6 @@ class Database:
 
             character_id = cursor.lastrowid
 
-            # Sauvegarder les compétences
             for skill in character.skills:
                 cursor.execute("""
                     INSERT INTO skills (character_id, name, effect, category)
@@ -225,7 +220,6 @@ class Database:
     def update_character(self, character: Character):
         cursor = self.conn.cursor()
 
-        # Mettre à jour le personnage
         cursor.execute("""
             UPDATE characters 
             SET hp = ?, max_hp = ?, power_gauge = ?, talent = ?, level = ?, experience = ?
@@ -233,15 +227,12 @@ class Database:
         """, (character.hp, character.max_hp, character.power_gauge, character.talent.value, 
               character.level, character.experience, character.name, character.owner_id))
 
-        # Récupérer l'ID du personnage
         cursor.execute("SELECT id FROM characters WHERE name = ? AND owner_id = ?", 
                       (character.name, character.owner_id))
         char_id = cursor.fetchone()[0]
 
-        # Supprimer les anciennes compétences
         cursor.execute("DELETE FROM skills WHERE character_id = ?", (char_id,))
 
-        # Ajouter les nouvelles compétences
         for skill in character.skills:
             cursor.execute("""
                 INSERT INTO skills (character_id, name, effect, category)
@@ -261,7 +252,6 @@ class Database:
         if not char_data:
             return None
 
-        # Récupérer les compétences
         cursor.execute("""
             SELECT name, effect, category FROM skills WHERE character_id = ?
         """, (char_data[0],))
@@ -291,7 +281,6 @@ class Database:
         if not char_data:
             return None
 
-        # Récupérer les compétences
         cursor.execute("""
             SELECT name, effect, category FROM skills WHERE character_id = ?
         """, (char_data[0],))
@@ -318,7 +307,6 @@ class Database:
 
         characters = []
         for char_data in cursor.fetchall():
-            # Récupérer les compétences pour chaque personnage
             cursor.execute("""
                 SELECT name, effect, category FROM skills WHERE character_id = ?
             """, (char_data[0],))
@@ -345,32 +333,27 @@ class Database:
     def delete_character(self, name: str, owner_id: int):
         cursor = self.conn.cursor()
 
-        # Récupérer l'ID du personnage
         cursor.execute("SELECT id FROM characters WHERE name = ? AND owner_id = ?", 
                       (name, owner_id))
         char_data = cursor.fetchone()
         if char_data:
             char_id = char_data[0]
-            # Supprimer les compétences
             cursor.execute("DELETE FROM skills WHERE character_id = ?", (char_id,))
-            # Supprimer le personnage
             cursor.execute("DELETE FROM characters WHERE id = ?", (char_id,))
             self.conn.commit()
 
-# Système de combat
+# Système de combat (identique)
 class CombatSystem:
     def __init__(self):
-        self.active_combats = {}  # channel_id -> CombatSession
-        self.pending_combats = {}  # player_id -> channel_id
+        self.active_combats = {}
+        self.pending_combats = {}
 
     def calculate_damage(self, attacker: Character, defender: Character, 
                         is_skill: bool = False, skill_category: SkillCategory = None) -> int:
         base_damage = 100
 
-        # Avantage/désavantage de talent
         talent_modifier = attacker.get_talent_advantage(defender.talent)
 
-        # Modificateur de compétence
         skill_modifier = 1.0
         if is_skill:
             if skill_category == SkillCategory.ATTAQUE:
@@ -378,27 +361,16 @@ class CombatSystem:
             elif skill_category == SkillCategory.RESTREINTE:
                 skill_modifier = 0.8
 
-        # État de bloodlust
         bloodlust_modifier = 2.0 if attacker.bloodlust_turns > 0 else 1.0
-
-        # État affaibli
         weakened_modifier = 0.5 if attacker.weakened_turns > 0 else 1.0
-
-        # Bonus d'attaque
         bonus_modifier = attacker.bonus_next_attack
-
-        # Défense de l'adversaire
         defense_modifier = 0.5 if defender.defending else 1.0
-
-        # Malus reçu
         malus_modifier = defender.malus_next_received
 
-        # Calcul final
         damage = (base_damage * talent_modifier * skill_modifier * 
                  bloodlust_modifier * weakened_modifier * bonus_modifier * 
                  defense_modifier * malus_modifier)
 
-        # Appliquer le modificateur de bloodlust pour les dégâts reçus
         if defender.bloodlust_turns > 0:
             damage *= 2.0
         elif defender.weakened_turns > 0:
@@ -407,68 +379,54 @@ class CombatSystem:
         return int(damage)
 
     def use_skill(self, character: Character, skill: Skill, opponent: Character) -> bool:
-        # Vérifier si la compétence est en cooldown
         if skill.cooldown > 0:
             return False
 
-        # Vérifier si le personnage a assez de jauge de pouvoir
         if character.power_gauge < skill.get_power_cost():
             return False
 
-        # Consommer la jauge de pouvoir
         character.power_gauge -= skill.get_power_cost()
 
-        # Appliquer les effets selon la catégorie
         if skill.category == SkillCategory.BONUS:
-            character.bonus_next_attack = 1.3  # +30% de dégâts à la prochaine attaque
+            character.bonus_next_attack = 1.3
         elif skill.category == SkillCategory.MALUS:
-            opponent.malus_next_received = 0.7  # -30% de dégâts à la prochaine attaque reçue
+            opponent.malus_next_received = 0.7
         elif skill.category == SkillCategory.RESTREINTE:
             opponent.skip_next_turn = True
 
-        # Démarrer le cooldown
         skill.cooldown = skill.get_cooldown_duration()
 
         return True
 
     def process_turn_end(self, character: Character):
-        """Traiter les effets de fin de tour"""
-        # Réduire les cooldowns
         for skill in character.skills:
             if skill.cooldown > 0:
                 skill.cooldown -= 1
 
-        # Réduire le cooldown de défense
         if character.defense_cooldown > 0:
             character.defense_cooldown -= 1
 
-        # Réinitialiser les modificateurs temporaires
         character.bonus_next_attack = 1.0
         character.malus_next_received = 1.0
         character.defending = False
 
-        # Gérer l'état de bloodlust
         if character.bloodlust_turns > 0:
             character.bloodlust_turns -= 1
             if character.bloodlust_turns == 0:
-                character.weakened_turns = 2  # Commence l'état affaibli
+                character.weakened_turns = 2
 
-        # Gérer l'état affaibli
         if character.weakened_turns > 0:
             character.weakened_turns -= 1
 
     def check_victory_conditions(self, session: CombatSession) -> Optional[int]:
-        """Vérifier les conditions de victoire, retourne l'ID du gagnant ou None"""
         char1 = session.player1_character
         char2 = session.player2_character
         obj1 = session.player1_objective
         obj2 = session.player2_objective
 
-        # Vérifier KO
         if char1.hp <= 0:
             if obj2 == ObjectifVictoire.KO:
                 return session.player2_id
-            # Si ce n'est pas l'objectif, le personnage peut entrer en bloodlust
             return None
 
         if char2.hp <= 0:
@@ -476,7 +434,6 @@ class CombatSystem:
                 return session.player1_id
             return None
 
-        # Vérifier jauge de pouvoir vide
         if char1.power_gauge <= 0:
             if obj2 == ObjectifVictoire.VIDER_POUVOIR:
                 return session.player2_id
@@ -487,7 +444,6 @@ class CombatSystem:
                 return session.player1_id
             return None
 
-        # Vérifier fin de bloodlust
         if (char1.bloodlust_turns == 0 and char1.weakened_turns == 0 and 
             char1.was_in_bloodlust):
             if obj2 == ObjectifVictoire.CONSOMMER_BLOODLUST:
@@ -502,20 +458,14 @@ class CombatSystem:
 
     def calculate_experience(self, character: Character, damage_dealt: int, 
                            victory: bool, final_hp: int, final_power: float) -> int:
-        """Calculer l'expérience gagnée après un combat"""
         base_exp = 0
 
-        # Objectif réussi
         if victory:
             base_exp += 2000
 
-        # Dégâts infligés
         base_exp += damage_dealt
-
-        # PV restants
         base_exp += final_hp
 
-        # Multiplicateur de jauge de pouvoir
         power_multiplier = 1.0 + (final_power / 100.0)
 
         return int(base_exp * power_multiplier)
@@ -524,25 +474,23 @@ class CombatSystem:
 db = Database()
 combat_system = CombatSystem()
 
-# ========== COMMANDES DU BOT ==========
+# ========== COMMANDES SLASH ==========
 
 @bot.event
 async def on_ready():
     print(f'{bot.user} est connecté et prêt!')
     print(f'Bot actif sur {len(bot.guilds)} serveur(s)')
-    await bot.change_presence(activity=discord.Game(name="RPG Discord | !aide"))
+    await bot.change_presence(activity=discord.Game(name="RPG Discord | /aide"))
 
-@bot.command(name='creer_personnage', aliases=['cp'])
-async def create_character(ctx, *, nom_complet: str):
+@bot.slash_command(name="creer_personnage", description="Créer un nouveau personnage")
+async def create_character(ctx, nom_complet: str):
     """Créer un nouveau personnage"""
 
-    # Vérifier si le personnage existe déjà
     existing_char = db.get_character(nom_complet, ctx.author.id)
     if existing_char:
-        await ctx.send(f"Vous avez déjà un personnage nommé **{nom_complet}**!")
+        await ctx.respond(f"Vous avez déjà un personnage nommé **{nom_complet}**!")
         return
 
-    # Créer le personnage
     character = Character(
         name=nom_complet,
         owner_id=ctx.author.id
@@ -557,96 +505,85 @@ async def create_character(ctx, *, nom_complet: str):
     embed.add_field(name="PV", value=f"{character.hp}/{character.max_hp}", inline=True)
     embed.add_field(name="Niveau", value=character.level, inline=True)
 
-    await ctx.send(embed=embed)
+    await ctx.respond(embed=embed)
 
     # Processus de création des compétences
-    await ctx.send("Vous pouvez maintenant créer **2 compétences** pour votre personnage.")
+    await ctx.followup.send("Vous pouvez maintenant créer **2 compétences** pour votre personnage.")
 
     for i in range(2):
-        await ctx.send(f"**Compétence {i+1}/2**")
+        await ctx.followup.send(f"**Compétence {i+1}/2**")
 
         # Demander le nom de la compétence
-        await ctx.send("Entrez le nom de la compétence:")
+        await ctx.followup.send("Entrez le nom de la compétence:")
         try:
             name_msg = await bot.wait_for('message', 
                                         check=lambda m: m.author == ctx.author and m.channel == ctx.channel,
                                         timeout=60.0)
             skill_name = name_msg.content
         except asyncio.TimeoutError:
-            await ctx.send("Temps écoulé. Création annulée.")
+            await ctx.followup.send("Temps écoulé. Création annulée.")
             return
 
         # Demander l'effet de la compétence
-        await ctx.send("Entrez l'effet de la compétence:")
+        await ctx.followup.send("Entrez l'effet de la compétence:")
         try:
             effect_msg = await bot.wait_for('message',
                                           check=lambda m: m.author == ctx.author and m.channel == ctx.channel,
                                           timeout=60.0)
             skill_effect = effect_msg.content
         except asyncio.TimeoutError:
-            await ctx.send("Temps écoulé. Création annulée.")
+            await ctx.followup.send("Temps écoulé. Création annulée.")
             return
 
-        # Demander la catégorie
-        category_embed = discord.Embed(
-            title="Catégories de Compétences",
-            description="Choisissez une catégorie (1-4):",
-            color=0x0099ff
-        )
-        category_embed.add_field(name="1️⃣ Attaque", 
-                               value="Dégâts x1,5, coût 10%, cooldown 1 tour", inline=False)
-        category_embed.add_field(name="2️⃣ Bonus", 
-                               value="Prochaine attaque +30%, coût 15%, cooldown 2 tours", inline=False)
-        category_embed.add_field(name="3️⃣ Malus", 
-                               value="Prochaine attaque adverse -30%, coût 15%, cooldown 2 tours", inline=False)
-        category_embed.add_field(name="4️⃣ Restreinte", 
-                               value="Fait sauter un tour, dégâts x0.8, coût 20%, cooldown 3 tours", inline=False)
+        # Demander la catégorie avec Select Menu
+        class CategorySelect(discord.ui.Select):
+            def __init__(self):
+                options = [
+                    discord.SelectOption(label="Attaque", description="Dégâts x1,5, coût 10%, cooldown 1 tour", value="1"),
+                    discord.SelectOption(label="Bonus", description="Prochaine attaque +30%, coût 15%, cooldown 2 tours", value="2"),
+                    discord.SelectOption(label="Malus", description="Prochaine attaque adverse -30%, coût 15%, cooldown 2 tours", value="3"),
+                    discord.SelectOption(label="Restreinte", description="Fait sauter un tour, dégâts x0.8, coût 20%, cooldown 3 tours", value="4")
+                ]
+                super().__init__(placeholder="Choisissez une catégorie...", options=options)
 
-        await ctx.send(embed=category_embed)
+            async def callback(self, interaction: discord.Interaction):
+                category_map = {
+                    '1': SkillCategory.ATTAQUE,
+                    '2': SkillCategory.BONUS,
+                    '3': SkillCategory.MALUS,
+                    '4': SkillCategory.RESTREINTE
+                }
 
-        try:
-            category_msg = await bot.wait_for('message',
-                                            check=lambda m: m.author == ctx.author and m.channel == ctx.channel,
-                                            timeout=60.0)
-            category_choice = category_msg.content.strip()
+                skill_category = category_map[self.values[0]]
+                skill = Skill(name=skill_name, effect=skill_effect, category=skill_category)
+                character.skills.append(skill)
 
-            category_map = {
-                '1': SkillCategory.ATTAQUE,
-                '2': SkillCategory.BONUS,
-                '3': SkillCategory.MALUS,
-                '4': SkillCategory.RESTREINTE
-            }
+                await interaction.response.send_message(f"✅ Compétence **{skill_name}** créée!")
 
-            if category_choice not in category_map:
-                await ctx.send("Choix invalide. Création annulée.")
-                return
+                if len(character.skills) == 2:
+                    char_id = db.save_character(character)
+                    if char_id:
+                        await ctx.followup.send(f"🎉 Personnage **{nom_complet}** créé avec succès!")
+                    else:
+                        await ctx.followup.send("❌ Erreur lors de la création du personnage.")
 
-            skill_category = category_map[category_choice]
+        class CategoryView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=60)
+                self.add_item(CategorySelect())
 
-        except asyncio.TimeoutError:
-            await ctx.send("Temps écoulé. Création annulée.")
-            return
+            async def on_timeout(self):
+                await ctx.followup.send("Temps écoulé. Création annulée.")
 
-        # Créer la compétence
-        skill = Skill(name=skill_name, effect=skill_effect, category=skill_category)
-        character.skills.append(skill)
+        await ctx.followup.send("Choisissez une catégorie:", view=CategoryView())
 
-        await ctx.send(f"✅ Compétence **{skill_name}** créée!")
-
-    # Sauvegarder le personnage
-    char_id = db.save_character(character)
-    if char_id:
-        await ctx.send(f"🎉 Personnage **{nom_complet}** créé avec succès!")
-    else:
-        await ctx.send("❌ Erreur lors de la création du personnage.")
-
-@bot.command(name='stats', aliases=['statistiques'])
-async def show_stats(ctx, *, nom_personnage: str):
+@bot.slash_command(name="stats", description="Afficher les statistiques d'un personnage")
+async def show_stats(ctx, nom_personnage: str):
     """Afficher les statistiques d'un personnage"""
 
     character = db.get_character(nom_personnage, ctx.author.id)
     if not character:
-        await ctx.send(f"Vous n'avez pas de personnage nommé **{nom_personnage}**.")
+        await ctx.respond(f"Vous n'avez pas de personnage nommé **{nom_personnage}**.")
         return
 
     embed = discord.Embed(
@@ -661,7 +598,6 @@ async def show_stats(ctx, *, nom_personnage: str):
     embed.add_field(name="✨ Expérience", value=f"{character.experience}/{character.get_level_threshold()}", inline=True)
     embed.add_field(name="🔮 Compétences", value=str(len(character.skills)), inline=True)
 
-    # Afficher les compétences
     if character.skills:
         skills_text = ""
         for skill in character.skills:
@@ -672,15 +608,15 @@ async def show_stats(ctx, *, nom_personnage: str):
 
         embed.add_field(name="🎪 Liste des Compétences", value=skills_text, inline=False)
 
-    await ctx.send(embed=embed)
+    await ctx.respond(embed=embed)
 
-@bot.command(name='mes_personnages', aliases=['mp', 'liste'])
+@bot.slash_command(name="mes_personnages", description="Lister tous vos personnages")
 async def my_characters(ctx):
     """Lister tous vos personnages"""
 
     characters = db.get_all_characters(ctx.author.id)
     if not characters:
-        await ctx.send("Vous n'avez aucun personnage. Utilisez `!creer_personnage <nom>` pour en créer un!")
+        await ctx.respond("Vous n'avez aucun personnage. Utilisez `/creer_personnage` pour en créer un!")
         return
 
     embed = discord.Embed(
@@ -695,179 +631,31 @@ async def my_characters(ctx):
             inline=False
         )
 
-    await ctx.send(embed=embed)
+    await ctx.respond(embed=embed)
 
-@bot.command(name='admin_modifier', aliases=['am'])
-@commands.has_permissions(administrator=True)
-async def admin_modify(ctx, nom_personnage: str, attribut: str, *, nouvelle_valeur: str):
-    """Commande administrateur pour modifier n'importe quel personnage"""
-
-    character = db.get_character_by_name_any_owner(nom_personnage)
-    if not character:
-        await ctx.send(f"Aucun personnage trouvé avec le nom **{nom_personnage}**.")
-        return
-
-    # Mapper les attributs
-    attributs_valides = {
-        'hp': 'hp',
-        'pv': 'hp',
-        'max_hp': 'max_hp',
-        'pv_max': 'max_hp',
-        'power_gauge': 'power_gauge',
-        'jauge_pouvoir': 'power_gauge',
-        'niveau': 'level',
-        'level': 'level',
-        'experience': 'experience',
-        'exp': 'experience',
-        'talent': 'talent'
-    }
-
-    attribut = attribut.lower()
-    if attribut not in attributs_valides:
-        await ctx.send(f"Attribut **{attribut}** non reconnu. Attributs valides: {', '.join(attributs_valides.keys())}")
-        return
-
-    attr_name = attributs_valides[attribut]
-
-    try:
-        if attr_name == 'talent':
-            # Conversion du talent
-            talent_map = {talent.value.lower(): talent for talent in Talent}
-            talent_key = nouvelle_valeur.lower()
-            if talent_key not in talent_map:
-                await ctx.send(f"Talent invalide. Talents disponibles: {', '.join([t.value for t in Talent])}")
-                return
-            setattr(character, attr_name, talent_map[talent_key])
-        elif attr_name in ['hp', 'max_hp', 'level', 'experience']:
-            setattr(character, attr_name, int(nouvelle_valeur))
-        elif attr_name == 'power_gauge':
-            setattr(character, attr_name, float(nouvelle_valeur))
-
-        # Sauvegarder les modifications
-        db.update_character(character)
-
-        await ctx.send(f"✅ **{nom_personnage}** - {attribut} modifié à: **{nouvelle_valeur}**")
-
-    except ValueError:
-        await ctx.send("❌ Valeur invalide pour cet attribut.")
-    except Exception as e:
-        await ctx.send(f"❌ Erreur lors de la modification: {str(e)}")
-
-@bot.command(name='ajouter_competence', aliases=['ac'])
-async def add_skill(ctx, *, nom_personnage: str):
-    """Ajouter une compétence à un personnage (tous les 10 niveaux)"""
-
-    character = db.get_character(nom_personnage, ctx.author.id)
-    if not character:
-        await ctx.send(f"Vous n'avez pas de personnage nommé **{nom_personnage}**.")
-        return
-
-    # Vérifier si le personnage peut apprendre une nouvelle compétence
-    expected_skills = 2 + ((character.level - 1) // 10)
-    if len(character.skills) >= expected_skills:
-        await ctx.send(f"**{nom_personnage}** ne peut pas apprendre de nouvelle compétence pour le moment. "
-                      f"(Niveau {character.level}, compétences actuelles: {len(character.skills)}/{expected_skills})")
-        return
-
-    await ctx.send(f"**{nom_personnage}** peut apprendre une nouvelle compétence!")
-
-    # Processus de création de compétence (similaire à la création de personnage)
-    await ctx.send("Entrez le nom de la compétence:")
-    try:
-        name_msg = await bot.wait_for('message', 
-                                    check=lambda m: m.author == ctx.author and m.channel == ctx.channel,
-                                    timeout=60.0)
-        skill_name = name_msg.content
-    except asyncio.TimeoutError:
-        await ctx.send("Temps écoulé. Ajout annulé.")
-        return
-
-    await ctx.send("Entrez l'effet de la compétence:")
-    try:
-        effect_msg = await bot.wait_for('message',
-                                      check=lambda m: m.author == ctx.author and m.channel == ctx.channel,
-                                      timeout=60.0)
-        skill_effect = effect_msg.content
-    except asyncio.TimeoutError:
-        await ctx.send("Temps écoulé. Ajout annulé.")
-        return
-
-    # Sélection de catégorie
-    category_embed = discord.Embed(
-        title="Catégories de Compétences",
-        description="Choisissez une catégorie (1-4):",
-        color=0x0099ff
-    )
-    category_embed.add_field(name="1️⃣ Attaque", 
-                           value="Dégâts x1,5, coût 10%, cooldown 1 tour", inline=False)
-    category_embed.add_field(name="2️⃣ Bonus", 
-                           value="Prochaine attaque +30%, coût 15%, cooldown 2 tours", inline=False)
-    category_embed.add_field(name="3️⃣ Malus", 
-                           value="Prochaine attaque adverse -30%, coût 15%, cooldown 2 tours", inline=False)
-    category_embed.add_field(name="4️⃣ Restreinte", 
-                           value="Fait sauter un tour, dégâts x0.8, coût 20%, cooldown 3 tours", inline=False)
-
-    await ctx.send(embed=category_embed)
-
-    try:
-        category_msg = await bot.wait_for('message',
-                                        check=lambda m: m.author == ctx.author and m.channel == ctx.channel,
-                                        timeout=60.0)
-        category_choice = category_msg.content.strip()
-
-        category_map = {
-            '1': SkillCategory.ATTAQUE,
-            '2': SkillCategory.BONUS,
-            '3': SkillCategory.MALUS,
-            '4': SkillCategory.RESTREINTE
-        }
-
-        if category_choice not in category_map:
-            await ctx.send("Choix invalide. Ajout annulé.")
-            return
-
-        skill_category = category_map[category_choice]
-
-    except asyncio.TimeoutError:
-        await ctx.send("Temps écoulé. Ajout annulé.")
-        return
-
-    # Créer et ajouter la compétence
-    skill = Skill(name=skill_name, effect=skill_effect, category=skill_category)
-    character.skills.append(skill)
-
-    # Sauvegarder
-    db.update_character(character)
-
-    await ctx.send(f"✅ Compétence **{skill_name}** ajoutée à **{nom_personnage}**!")
-
-# ========== COMMANDES DE COMBAT ==========
-
-@bot.command(name='defier', aliases=['combat', 'duel'])
+@bot.slash_command(name="defier", description="Défier un autre joueur en combat")
 async def challenge_player(ctx, opponent: discord.Member):
     """Défier un autre joueur en combat"""
 
     if opponent == ctx.author:
-        await ctx.send("Vous ne pouvez pas vous défier vous-même!")
+        await ctx.respond("Vous ne pouvez pas vous défier vous-même!")
         return
 
     if opponent.bot:
-        await ctx.send("Vous ne pouvez pas défier un bot!")
+        await ctx.respond("Vous ne pouvez pas défier un bot!")
         return
 
-    # Vérifier si les joueurs ont des personnages
     player1_chars = db.get_all_characters(ctx.author.id)
     player2_chars = db.get_all_characters(opponent.id)
 
     if not player1_chars:
-        await ctx.send("Vous n'avez aucun personnage! Créez-en un avec `!creer_personnage`.")
+        await ctx.respond("Vous n'avez aucun personnage! Créez-en un avec `/creer_personnage`.")
         return
 
     if not player2_chars:
-        await ctx.send(f"{opponent.display_name} n'a aucun personnage!")
+        await ctx.respond(f"{opponent.display_name} n'a aucun personnage!")
         return
 
-    # Créer une session de combat
     session = CombatSession(ctx.author.id, opponent.id, ctx.channel.id)
     combat_system.active_combats[ctx.channel.id] = session
 
@@ -878,30 +666,29 @@ async def challenge_player(ctx, opponent: discord.Member):
     )
     challenge_embed.add_field(
         name="Instructions",
-        value="Les deux joueurs doivent choisir un personnage avec `!choisir_personnage <nom>`",
+        value="Les deux joueurs doivent choisir un personnage avec `/choisir_personnage`",
         inline=False
     )
 
-    await ctx.send(embed=challenge_embed)
+    await ctx.respond(embed=challenge_embed)
 
-@bot.command(name='choisir_personnage', aliases=['choisir'])
-async def choose_character(ctx, *, nom_personnage: str):
+@bot.slash_command(name="choisir_personnage", description="Choisir un personnage pour le combat")
+async def choose_character(ctx, nom_personnage: str):
     """Choisir un personnage pour le combat"""
 
     if ctx.channel.id not in combat_system.active_combats:
-        await ctx.send("Aucun combat en cours dans ce canal!")
+        await ctx.respond("Aucun combat en cours dans ce canal!")
         return
 
     session = combat_system.active_combats[ctx.channel.id]
 
     if ctx.author.id not in [session.player1_id, session.player2_id]:
-        await ctx.send("Vous ne participez pas à ce combat!")
+        await ctx.respond("Vous ne participez pas à ce combat!")
         return
 
-    # Récupérer le personnage
     character = db.get_character(nom_personnage, ctx.author.id)
     if not character:
-        await ctx.send(f"Vous n'avez pas de personnage nommé **{nom_personnage}**.")
+        await ctx.respond(f"Vous n'avez pas de personnage nommé **{nom_personnage}**.")
         return
 
     # Réinitialiser les états de combat
@@ -916,119 +703,112 @@ async def choose_character(ctx, *, nom_personnage: str):
     character.hp = character.max_hp
     character.power_gauge = 100.0
 
-    # Réinitialiser les cooldowns des compétences
     for skill in character.skills:
         skill.cooldown = 0
 
-    # Assigner le personnage
     if ctx.author.id == session.player1_id:
         session.player1_character = character
     else:
         session.player2_character = character
 
-    await ctx.send(f"✅ **{nom_personnage}** sélectionné pour le combat!")
+    await ctx.respond(f"✅ **{nom_personnage}** sélectionné pour le combat!")
 
-    # Vérifier si les deux joueurs ont choisi
     if session.player1_character and session.player2_character:
         await start_objective_selection(ctx, session)
 
 async def start_objective_selection(ctx, session):
     """Commencer la sélection des objectifs de victoire"""
 
+    class ObjectiveSelect(discord.ui.Select):
+        def __init__(self, user_id):
+            self.user_id = user_id
+            options = [
+                discord.SelectOption(label="K.O.", description="Faire tomber l'adversaire KO (PV à 0)", value="1"),
+                discord.SelectOption(label="Vider Pouvoir", description="Forcer l'adversaire à vider sa jauge de pouvoir", value="2"),
+                discord.SelectOption(label="Bloodlust", description="Forcer l'adversaire à consommer son état de bloodlust", value="3")
+            ]
+            super().__init__(placeholder="Choisissez votre objectif...", options=options)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != self.user_id:
+                await interaction.response.send_message("Ce n'est pas votre sélection!", ephemeral=True)
+                return
+
+            objective_map = {
+                '1': ObjectifVictoire.KO,
+                '2': ObjectifVictoire.VIDER_POUVOIR,
+                '3': ObjectifVictoire.CONSOMMER_BLOODLUST
+            }
+
+            objective = objective_map[self.values[0]]
+
+            if interaction.user.id == session.player1_id:
+                session.player1_objective = objective
+            else:
+                session.player2_objective = objective
+
+            await interaction.response.send_message(f"✅ Objectif sélectionné: **{objective.value}**")
+
+            if session.both_players_ready():
+                await start_rock_paper_scissors(ctx, session)
+
+    class ObjectiveView(discord.ui.View):
+        def __init__(self, user_id):
+            super().__init__(timeout=60)
+            self.add_item(ObjectiveSelect(user_id))
+
     objectives_embed = discord.Embed(
         title="🎯 Choix des Objectifs de Victoire",
-        description="Chaque joueur doit choisir son objectif avec `!objectif <numéro>`",
+        description="Chaque joueur doit choisir son objectif",
         color=0x00ff7f
     )
-    objectives_embed.add_field(name="1️⃣ K.O.", value="Faire tomber l'adversaire KO (PV à 0)", inline=False)
-    objectives_embed.add_field(name="2️⃣ Vider Pouvoir", value="Forcer l'adversaire à vider sa jauge de pouvoir", inline=False)
-    objectives_embed.add_field(name="3️⃣ Bloodlust", value="Forcer l'adversaire à consommer son état de bloodlust", inline=False)
 
-    await ctx.send(embed=objectives_embed)
+    player1 = bot.get_user(session.player1_id)
+    player2 = bot.get_user(session.player2_id)
 
-@bot.command(name='objectif')
-async def choose_objective(ctx, choix: str):
-    """Choisir l'objectif de victoire"""
-
-    if ctx.channel.id not in combat_system.active_combats:
-        await ctx.send("Aucun combat en cours dans ce canal!")
-        return
-
-    session = combat_system.active_combats[ctx.channel.id]
-
-    if ctx.author.id not in [session.player1_id, session.player2_id]:
-        await ctx.send("Vous ne participez pas à ce combat!")
-        return
-
-    objective_map = {
-        '1': ObjectifVictoire.KO,
-        '2': ObjectifVictoire.VIDER_POUVOIR,
-        '3': ObjectifVictoire.CONSOMMER_BLOODLUST
-    }
-
-    if choix not in objective_map:
-        await ctx.send("Choix invalide! Utilisez 1, 2 ou 3.")
-        return
-
-    objective = objective_map[choix]
-
-    # Assigner l'objectif
-    if ctx.author.id == session.player1_id:
-        session.player1_objective = objective
-    else:
-        session.player2_objective = objective
-
-    await ctx.send(f"✅ Objectif sélectionné: **{objective.value}**")
-
-    # Vérifier si les deux joueurs ont choisi
-    if session.both_players_ready():
-        await start_rock_paper_scissors(ctx, session)
+    await ctx.followup.send(f"{player1.mention}, choisissez votre objectif:", embed=objectives_embed, view=ObjectiveView(session.player1_id))
+    await ctx.followup.send(f"{player2.mention}, choisissez votre objectif:", embed=objectives_embed, view=ObjectiveView(session.player2_id))
 
 async def start_rock_paper_scissors(ctx, session):
     """Commencer le pierre-feuille-ciseaux pour déterminer l'ordre"""
 
+    class RPSSelect(discord.ui.Select):
+        def __init__(self, user_id):
+            self.user_id = user_id
+            options = [
+                discord.SelectOption(label="Pierre", emoji="🪨", value="pierre"),
+                discord.SelectOption(label="Feuille", emoji="📄", value="feuille"),
+                discord.SelectOption(label="Ciseaux", emoji="✂️", value="ciseaux")
+            ]
+            super().__init__(placeholder="Choisissez...", options=options)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != self.user_id:
+                await interaction.response.send_message("Ce n'est pas votre tour!", ephemeral=True)
+                return
+
+            session.rps_results[interaction.user.id] = self.values[0]
+            await interaction.response.send_message("✅ Choix enregistré!", ephemeral=True)
+
+            if len(session.rps_results) == 2:
+                await resolve_rps(ctx, session)
+
+    class RPSView(discord.ui.View):
+        def __init__(self, user_id):
+            super().__init__(timeout=60)
+            self.add_item(RPSSelect(user_id))
+
     rps_embed = discord.Embed(
         title="✂️ Pierre-Feuille-Ciseaux",
-        description="Utilisez `!pfc <choix>` pour jouer\n(pierre, feuille, ciseaux)",
+        description="Choisissez pour déterminer l'ordre du combat",
         color=0xffff00
     )
 
-    await ctx.send(embed=rps_embed)
+    player1 = bot.get_user(session.player1_id)
+    player2 = bot.get_user(session.player2_id)
 
-@bot.command(name='pfc', aliases=['rps'])
-async def rock_paper_scissors(ctx, choix: str):
-    """Jouer pierre-feuille-ciseaux"""
-
-    if ctx.channel.id not in combat_system.active_combats:
-        await ctx.send("Aucun combat en cours dans ce canal!")
-        return
-
-    session = combat_system.active_combats[ctx.channel.id]
-
-    if ctx.author.id not in [session.player1_id, session.player2_id]:
-        return
-
-    valid_choices = ['pierre', 'feuille', 'ciseaux', 'rock', 'paper', 'scissors']
-    choix = choix.lower()
-
-    if choix not in valid_choices:
-        await ctx.send("Choix invalide! Utilisez: pierre, feuille, ou ciseaux")
-        return
-
-    # Normaliser le choix
-    choice_map = {
-        'pierre': 'pierre', 'rock': 'pierre',
-        'feuille': 'feuille', 'paper': 'feuille', 
-        'ciseaux': 'ciseaux', 'scissors': 'ciseaux'
-    }
-    normalized_choice = choice_map[choix]
-
-    session.rps_results[ctx.author.id] = normalized_choice
-    await ctx.send("✅ Choix enregistré!")
-
-    # Vérifier si les deux joueurs ont joué
-    if len(session.rps_results) == 2:
-        await resolve_rps(ctx, session)
+    await ctx.followup.send(f"{player1.mention}", embed=rps_embed, view=RPSView(session.player1_id))
+    await ctx.followup.send(f"{player2.mention}", embed=rps_embed, view=RPSView(session.player2_id))
 
 async def resolve_rps(ctx, session):
     """Résoudre le pierre-feuille-ciseaux"""
@@ -1039,7 +819,6 @@ async def resolve_rps(ctx, session):
     player1 = bot.get_user(session.player1_id)
     player2 = bot.get_user(session.player2_id)
 
-    # Déterminer le gagnant
     win_conditions = {
         ('pierre', 'ciseaux'): session.player1_id,
         ('feuille', 'pierre'): session.player1_id,
@@ -1059,19 +838,17 @@ async def resolve_rps(ctx, session):
         session.current_turn = winner_id
         winner = bot.get_user(winner_id)
         result_embed.add_field(name="🏆 Gagnant", value=f"{winner.display_name} commence!", inline=False)
+
+        await ctx.followup.send(embed=result_embed)
+
+        session.combat_started = True
+        session.turn_count = 1
+        await show_combat_status(ctx, session)
     else:
-        # Égalité
         result_embed.add_field(name="🤝 Égalité", value="Rejouez!", inline=False)
         session.rps_results.clear()
-        await ctx.send(embed=result_embed)
-        return
-
-    await ctx.send(embed=result_embed)
-
-    # Commencer le combat
-    session.combat_started = True
-    session.turn_count = 1
-    await show_combat_status(ctx, session)
+        await ctx.followup.send(embed=result_embed)
+        await start_rock_paper_scissors(ctx, session)
 
 async def show_combat_status(ctx, session):
     """Afficher le statut actuel du combat"""
@@ -1124,83 +901,81 @@ async def show_combat_status(ctx, session):
         inline=True
     )
 
-    # Actions disponibles
-    actions_text = "Utilisez:\n`!attaque` - Attaque basique\n`!competence <nom>` - Utiliser une compétence\n`!defense` - Se défendre"
-    embed.add_field(name="🎮 Actions", value=actions_text, inline=False)
+    # Actions disponible via boutons
+    class CombatView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=300)
 
-    await ctx.send(embed=embed)
+        @discord.ui.button(label="Attaque", style=discord.ButtonStyle.red, emoji="⚔️")
+        async def attack_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+            if interaction.user.id != session.current_turn:
+                await interaction.response.send_message("Ce n'est pas votre tour!", ephemeral=True)
+                return
 
-@bot.command(name='attaque', aliases=['attaquer'])
-async def basic_attack(ctx):
-    """Effectuer une attaque basique"""
+            await interaction.response.defer()
+            await basic_attack_action(ctx, session, interaction.user.id)
 
-    if ctx.channel.id not in combat_system.active_combats:
-        await ctx.send("Aucun combat en cours!")
-        return
+        @discord.ui.button(label="Défense", style=discord.ButtonStyle.gray, emoji="🛡️")
+        async def defense_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+            if interaction.user.id != session.current_turn:
+                await interaction.response.send_message("Ce n'est pas votre tour!", ephemeral=True)
+                return
 
-    session = combat_system.active_combats[ctx.channel.id]
+            await interaction.response.defer()
+            await defense_action_handler(ctx, session, interaction.user.id)
 
-    if not session.combat_started:
-        await ctx.send("Le combat n'a pas encore commencé!")
-        return
+        @discord.ui.button(label="Bloodlust", style=discord.ButtonStyle.danger, emoji="🔥")
+        async def bloodlust_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+            if interaction.user.id not in [session.player1_id, session.player2_id]:
+                await interaction.response.send_message("Vous ne participez pas à ce combat!", ephemeral=True)
+                return
 
-    if ctx.author.id != session.current_turn:
-        await ctx.send("Ce n'est pas votre tour!")
-        return
+            await interaction.response.defer()
+            await bloodlust_action(ctx, session, interaction.user.id)
 
-    attacker = session.get_character(ctx.author.id)
-    defender = session.get_opponent_character(ctx.author.id)
+        @discord.ui.button(label="Forfait", style=discord.ButtonStyle.secondary, emoji="🏳️")
+        async def forfeit_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+            if interaction.user.id not in [session.player1_id, session.player2_id]:
+                await interaction.response.send_message("Vous ne participez pas à ce combat!", ephemeral=True)
+                return
 
-    # Vérifier si le personnage doit sauter son tour
+            await interaction.response.defer()
+            winner_id = session.get_opponent_id(interaction.user.id)
+            await interaction.followup.send(f"🏳️ **{interaction.user.display_name}** abandonne le combat!")
+            await end_combat(ctx, session, winner_id)
+
+    await ctx.followup.send(embed=embed, view=CombatView())
+
+# Actions de combat (fonctions helpers)
+async def basic_attack_action(ctx, session, user_id):
+    attacker = session.get_character(user_id)
+    defender = session.get_opponent_character(user_id)
+
     if attacker.skip_next_turn:
         attacker.skip_next_turn = False
-        await ctx.send(f"**{attacker.name}** doit sauter ce tour à cause d'une compétence restreinte!")
+        await ctx.followup.send(f"**{attacker.name}** doit sauter ce tour à cause d'une compétence restreinte!")
         await end_turn(ctx, session)
         return
 
-    # Vérifier l'état de bloodlust (30% de chance d'action aléatoire)
     if attacker.bloodlust_turns > 0 and random.random() < 0.3:
-        actions = [CombatAction.COMPETENCE, CombatAction.DEFENSE]
-        random_action = random.choice(actions)
-        await ctx.send(f"🔥 **{attacker.name}** en bloodlust agit de manière imprévisible!")
-
-        if random_action == CombatAction.DEFENSE:
-            await defense_action(ctx, attacker, defender, session)
-        else:
-            # Choisir une compétence aléatoire utilisable
-            available_skills = [s for s in attacker.skills if s.cooldown == 0 and 
-                             attacker.power_gauge >= s.get_power_cost()]
-            if available_skills:
-                random_skill = random.choice(available_skills)
-                await skill_action(ctx, attacker, defender, session, random_skill)
-            else:
-                # Pas de compétence disponible, attaque basique
-                await attack_action(ctx, attacker, defender, session)
-    else:
-        await attack_action(ctx, attacker, defender, session)
-
-async def attack_action(ctx, attacker: Character, defender: Character, session):
-    """Exécuter une attaque basique"""
+        await ctx.followup.send(f"🔥 **{attacker.name}** en bloodlust agit de manière imprévisible!")
+        # Action aléatoire simplifiée
 
     damage = combat_system.calculate_damage(attacker, defender)
 
-    # Récupération de PV en bloodlust (30% de chance)
     heal_amount = 0
     if attacker.bloodlust_turns > 0 and random.random() < 0.3:
         heal_amount = int(damage * 0.25)
         attacker.hp = min(attacker.max_hp, attacker.hp + heal_amount)
 
-    # Appliquer les dégâts
     defender.hp = max(0, defender.hp - damage)
 
-    # Message d'attaque
     attack_msg = f"⚔️ **{attacker.name}** attaque **{defender.name}** pour **{damage}** dégâts!"
     if heal_amount > 0:
         attack_msg += f"\n💖 **{attacker.name}** récupère **{heal_amount}** PV grâce au bloodlust!"
 
-    await ctx.send(attack_msg)
+    await ctx.followup.send(attack_msg)
 
-    # Vérifier les conditions de victoire
     winner_id = combat_system.check_victory_conditions(session)
     if winner_id:
         await end_combat(ctx, session, winner_id)
@@ -1208,180 +983,43 @@ async def attack_action(ctx, attacker: Character, defender: Character, session):
 
     await end_turn(ctx, session)
 
-@bot.command(name='competence', aliases=['skill'])
-async def use_skill_command(ctx, *, nom_competence: str):
-    """Utiliser une compétence"""
+async def defense_action_handler(ctx, session, user_id):
+    character = session.get_character(user_id)
 
-    if ctx.channel.id not in combat_system.active_combats:
-        await ctx.send("Aucun combat en cours!")
-        return
-
-    session = combat_system.active_combats[ctx.channel.id]
-
-    if not session.combat_started:
-        await ctx.send("Le combat n'a pas encore commencé!")
-        return
-
-    if ctx.author.id != session.current_turn:
-        await ctx.send("Ce n'est pas votre tour!")
-        return
-
-    attacker = session.get_character(ctx.author.id)
-    defender = session.get_opponent_character(ctx.author.id)
-
-    # Vérifier si le personnage doit sauter son tour
-    if attacker.skip_next_turn:
-        attacker.skip_next_turn = False
-        await ctx.send(f"**{attacker.name}** doit sauter ce tour à cause d'une compétence restreinte!")
-        await end_turn(ctx, session)
-        return
-
-    # Trouver la compétence
-    skill = None
-    for s in attacker.skills:
-        if s.name.lower() == nom_competence.lower():
-            skill = s
-            break
-
-    if not skill:
-        await ctx.send(f"Compétence **{nom_competence}** non trouvée!")
-        return
-
-    # Vérifier si la compétence peut être utilisée
-    if skill.cooldown > 0:
-        await ctx.send(f"**{skill.name}** est en cooldown ({skill.cooldown} tours restants)!")
-        return
-
-    if attacker.power_gauge < skill.get_power_cost():
-        await ctx.send(f"Jauge de pouvoir insuffisante! (**{skill.get_power_cost()}%** requis)")
-        return
-
-    await skill_action(ctx, attacker, defender, session, skill)
-
-async def skill_action(ctx, attacker: Character, defender: Character, session, skill: Skill):
-    """Exécuter une action de compétence"""
-
-    # Utiliser la compétence
-    combat_system.use_skill(attacker, skill, defender)
-
-    skill_msg = f"✨ **{attacker.name}** utilise **{skill.name}**!"
-
-    damage = 0
-    heal_amount = 0
-
-    # Calculer et appliquer les dégâts si c'est une compétence d'attaque ou restreinte
-    if skill.category in [SkillCategory.ATTAQUE, SkillCategory.RESTREINTE]:
-        damage = combat_system.calculate_damage(attacker, defender, True, skill.category)
-
-        # Récupération de PV en bloodlust (30% de chance)
-        if attacker.bloodlust_turns > 0 and random.random() < 0.3:
-            heal_amount = int(damage * 0.25)
-            attacker.hp = min(attacker.max_hp, attacker.hp + heal_amount)
-
-        # Appliquer les dégâts
-        defender.hp = max(0, defender.hp - damage)
-        skill_msg += f"\n💥 **{damage}** dégâts infligés!"
-
-    # Messages spéciaux selon la catégorie
-    if skill.category == SkillCategory.BONUS:
-        skill_msg += "\n🔥 Prochaine attaque renforcée!"
-    elif skill.category == SkillCategory.MALUS:
-        skill_msg += "\n🛡️ Prochaine attaque adverse affaiblie!"
-    elif skill.category == SkillCategory.RESTREINTE:
-        skill_msg += "\n⏸️ L'adversaire sautera son prochain tour!"
-
-    if heal_amount > 0:
-        skill_msg += f"\n💖 **{attacker.name}** récupère **{heal_amount}** PV!"
-
-    await ctx.send(skill_msg)
-
-    # Vérifier les conditions de victoire
-    winner_id = combat_system.check_victory_conditions(session)
-    if winner_id:
-        await end_combat(ctx, session, winner_id)
-        return
-
-    await end_turn(ctx, session)
-
-@bot.command(name='defense', aliases=['defendre'])
-async def defend_command(ctx):
-    """Se défendre"""
-
-    if ctx.channel.id not in combat_system.active_combats:
-        await ctx.send("Aucun combat en cours!")
-        return
-
-    session = combat_system.active_combats[ctx.channel.id]
-
-    if not session.combat_started:
-        await ctx.send("Le combat n'a pas encore commencé!")
-        return
-
-    if ctx.author.id != session.current_turn:
-        await ctx.send("Ce n'est pas votre tour!")
-        return
-
-    attacker = session.get_character(ctx.author.id)
-    defender = session.get_opponent_character(ctx.author.id)
-
-    await defense_action(ctx, attacker, defender, session)
-
-async def defense_action(ctx, character: Character, opponent: Character, session):
-    """Exécuter une action de défense"""
-
-    # Vérifier si le personnage doit sauter son tour
     if character.skip_next_turn:
         character.skip_next_turn = False
-        await ctx.send(f"**{character.name}** doit sauter ce tour à cause d'une compétence restreinte!")
+        await ctx.followup.send(f"**{character.name}** doit sauter ce tour à cause d'une compétence restreinte!")
         await end_turn(ctx, session)
         return
 
-    # Vérifier si la défense est en cooldown
     if character.defense_cooldown > 0:
-        await ctx.send(f"🛡️ Défense en cooldown ({character.defense_cooldown} tours restants)!")
+        await ctx.followup.send(f"🛡️ Défense en cooldown ({character.defense_cooldown} tours restants)!")
         return
 
-    # Activer la défense
     character.defending = True
-    await ctx.send(f"🛡️ **{character.name}** se met en position de défense!")
+    await ctx.followup.send(f"🛡️ **{character.name}** se met en position de défense!")
 
     await end_turn(ctx, session)
 
-@bot.command(name='bloodlust', aliases=['bl'])
-async def enter_bloodlust(ctx):
-    """Entrer en état de bloodlust quand la jauge de pouvoir est à 0"""
+async def bloodlust_action(ctx, session, user_id):
+    character = session.get_character(user_id)
 
-    if ctx.channel.id not in combat_system.active_combats:
-        await ctx.send("Aucun combat en cours!")
-        return
-
-    session = combat_system.active_combats[ctx.channel.id]
-
-    if ctx.author.id not in [session.player1_id, session.player2_id]:
-        await ctx.send("Vous ne participez pas à ce combat!")
-        return
-
-    character = session.get_character(ctx.author.id)
-
-    # Vérifier si le personnage peut entrer en bloodlust
     if character.power_gauge > 0:
-        await ctx.send("Vous ne pouvez entrer en bloodlust qu'avec une jauge de pouvoir vide!")
+        await ctx.followup.send("Vous ne pouvez entrer en bloodlust qu'avec une jauge de pouvoir vide!")
         return
 
     if character.bloodlust_turns > 0:
-        await ctx.send("Vous êtes déjà en état de bloodlust!")
+        await ctx.followup.send("Vous êtes déjà en état de bloodlust!")
         return
 
-    # Vérifier si c'est la condition de victoire adverse
-    opponent_id = session.get_opponent_id(ctx.author.id)
+    opponent_id = session.get_opponent_id(user_id)
     opponent_objective = session.player1_objective if opponent_id == session.player1_id else session.player2_objective
 
     if opponent_objective == ObjectifVictoire.VIDER_POUVOIR:
-        await ctx.send("❌ Vous ne pouvez pas entrer en bloodlust car c'est la condition de victoire de votre adversaire!")
+        await ctx.followup.send("❌ Vous ne pouvez pas entrer en bloodlust car c'est la condition de victoire de votre adversaire!")
         await end_combat(ctx, session, opponent_id)
         return
 
-    # Activer le bloodlust
     character.bloodlust_turns = 8
     character.power_gauge = 100.0
     character.was_in_bloodlust = True
@@ -1396,29 +1034,19 @@ async def enter_bloodlust(ctx):
                              inline=False)
     bloodlust_embed.add_field(name="Durée", value="8 tours + 2 tours d'affaiblissement", inline=False)
 
-    await ctx.send(embed=bloodlust_embed)
-
-    # Continuer le combat
+    await ctx.followup.send(embed=bloodlust_embed)
     await show_combat_status(ctx, session)
 
 async def end_turn(ctx, session):
-    """Terminer le tour actuel"""
-
     current_char = session.get_character(session.current_turn)
-
-    # Traiter les effets de fin de tour
     combat_system.process_turn_end(current_char)
 
-    # Passer au joueur suivant
     session.current_turn = session.get_opponent_id(session.current_turn)
     session.turn_count += 1
 
-    # Afficher le statut du combat
     await show_combat_status(ctx, session)
 
 async def end_combat(ctx, session, winner_id: int):
-    """Terminer le combat"""
-
     winner = bot.get_user(winner_id)
     loser_id = session.get_opponent_id(winner_id)
     loser = bot.get_user(loser_id)
@@ -1426,7 +1054,6 @@ async def end_combat(ctx, session, winner_id: int):
     winner_char = session.get_character(winner_id)
     loser_char = session.get_character(loser_id)
 
-    # Calculer l'expérience (simplifié pour l'exemple)
     winner_exp = combat_system.calculate_experience(
         winner_char, 1000 - loser_char.hp, True, 
         winner_char.hp, winner_char.power_gauge
@@ -1436,11 +1063,9 @@ async def end_combat(ctx, session, winner_id: int):
         loser_char.hp, loser_char.power_gauge
     )
 
-    # Appliquer l'expérience
     winner_char.experience += winner_exp
     loser_char.experience += loser_exp
 
-    # Vérifier les montées de niveau
     winner_leveled = winner_char.can_level_up()
     loser_leveled = loser_char.can_level_up()
 
@@ -1449,17 +1074,14 @@ async def end_combat(ctx, session, winner_id: int):
     if loser_leveled:
         loser_char.level_up()
 
-    # Réinitialiser les statistiques
     winner_char.hp = winner_char.max_hp
     winner_char.power_gauge = 100.0
     loser_char.hp = loser_char.max_hp
     loser_char.power_gauge = 100.0
 
-    # Sauvegarder les personnages
     db.update_character(winner_char)
     db.update_character(loser_char)
 
-    # Message de fin
     end_embed = discord.Embed(
         title="🏆 Fin du Combat!",
         description=f"**{winner.display_name}** remporte la victoire!",
@@ -1478,193 +1100,146 @@ async def end_combat(ctx, session, winner_id: int):
         inline=True
     )
 
-    await ctx.send(embed=end_embed)
+    await ctx.followup.send(embed=end_embed)
 
-    # Nettoyer la session de combat
     del combat_system.active_combats[ctx.channel.id]
 
-@bot.command(name='forfait', aliases=['abandon'])
-async def forfeit_combat(ctx):
-    """Abandonner le combat en cours"""
+# Commandes slash pour les compétences
+@bot.slash_command(name="competence", description="Utiliser une compétence en combat")
+async def use_skill_command(ctx, nom_competence: str):
+    """Utiliser une compétence"""
 
     if ctx.channel.id not in combat_system.active_combats:
-        await ctx.send("Aucun combat en cours!")
+        await ctx.respond("Aucun combat en cours!")
         return
 
     session = combat_system.active_combats[ctx.channel.id]
 
-    if ctx.author.id not in [session.player1_id, session.player2_id]:
-        await ctx.send("Vous ne participez pas à ce combat!")
+    if not session.combat_started:
+        await ctx.respond("Le combat n'a pas encore commencé!")
         return
 
-    # Déterminer le gagnant (l'adversaire)
-    winner_id = session.get_opponent_id(ctx.author.id)
-
-    await ctx.send(f"🏳️ **{ctx.author.display_name}** abandonne le combat!")
-    await end_combat(ctx, session, winner_id)
-
-@bot.command(name='mes_competences', aliases=['competences'])
-async def show_skills_in_combat(ctx):
-    """Afficher vos compétences disponibles pendant un combat"""
-
-    if ctx.channel.id not in combat_system.active_combats:
-        await ctx.send("Utilisez cette commande pendant un combat!")
+    if ctx.author.id != session.current_turn:
+        await ctx.respond("Ce n'est pas votre tour!")
         return
 
-    session = combat_system.active_combats[ctx.channel.id]
+    attacker = session.get_character(ctx.author.id)
+    defender = session.get_opponent_character(ctx.author.id)
 
-    if ctx.author.id not in [session.player1_id, session.player2_id]:
+    if attacker.skip_next_turn:
+        attacker.skip_next_turn = False
+        await ctx.respond(f"**{attacker.name}** doit sauter ce tour à cause d'une compétence restreinte!")
+        await end_turn(ctx, session)
         return
 
-    character = session.get_character(ctx.author.id)
+    skill = None
+    for s in attacker.skills:
+        if s.name.lower() == nom_competence.lower():
+            skill = s
+            break
 
-    if not character.skills:
-        await ctx.send("Vous n'avez aucune compétence!")
+    if not skill:
+        await ctx.respond(f"Compétence **{nom_competence}** non trouvée!")
         return
+
+    if skill.cooldown > 0:
+        await ctx.respond(f"**{skill.name}** est en cooldown ({skill.cooldown} tours restants)!")
+        return
+
+    if attacker.power_gauge < skill.get_power_cost():
+        await ctx.respond(f"Jauge de pouvoir insuffisante! (**{skill.get_power_cost()}%** requis)")
+        return
+
+    combat_system.use_skill(attacker, skill, defender)
+
+    skill_msg = f"✨ **{attacker.name}** utilise **{skill.name}**!"
+
+    damage = 0
+    heal_amount = 0
+
+    if skill.category in [SkillCategory.ATTAQUE, SkillCategory.RESTREINTE]:
+        damage = combat_system.calculate_damage(attacker, defender, True, skill.category)
+
+        if attacker.bloodlust_turns > 0 and random.random() < 0.3:
+            heal_amount = int(damage * 0.25)
+            attacker.hp = min(attacker.max_hp, attacker.hp + heal_amount)
+
+        defender.hp = max(0, defender.hp - damage)
+        skill_msg += f"\n💥 **{damage}** dégâts infligés!"
+
+    if skill.category == SkillCategory.BONUS:
+        skill_msg += "\n🔥 Prochaine attaque renforcée!"
+    elif skill.category == SkillCategory.MALUS:
+        skill_msg += "\n🛡️ Prochaine attaque adverse affaiblie!"
+    elif skill.category == SkillCategory.RESTREINTE:
+        skill_msg += "\n⏸️ L'adversaire sautera son prochain tour!"
+
+    if heal_amount > 0:
+        skill_msg += f"\n💖 **{attacker.name}** récupère **{heal_amount}** PV!"
+
+    await ctx.respond(skill_msg)
+
+    winner_id = combat_system.check_victory_conditions(session)
+    if winner_id:
+        await end_combat(ctx, session, winner_id)
+        return
+
+    await end_turn(ctx, session)
+
+# Autres commandes slash utilitaires
+@bot.slash_command(name="aide", description="Afficher toutes les commandes disponibles")
+async def show_commands(ctx):
+    """Afficher toutes les commandes disponibles"""
 
     embed = discord.Embed(
-        title=f"🎪 Compétences de {character.name}",
-        color=0x9932cc
-    )
-
-    for skill in character.skills:
-        status = ""
-        if skill.cooldown > 0:
-            status += f"⏳ Cooldown: {skill.cooldown} tours\n"
-
-        power_cost = skill.get_power_cost()
-        can_use = character.power_gauge >= power_cost and skill.cooldown == 0
-
-        status += f"⚡ Coût: {power_cost}%\n"
-        status += f"🔄 Cooldown max: {skill.get_cooldown_duration()} tours\n"
-        status += f"{'✅ Disponible' if can_use else '❌ Indisponible'}"
-
-        embed.add_field(
-            name=f"{skill.name} ({skill.category.value})",
-            value=f"{skill.effect}\n\n{status}",
-            inline=False
-        )
-
-    await ctx.send(embed=embed)
-
-# ========== COMMANDES UTILITAIRES ==========
-
-@bot.command(name='aide_combat', aliases=['help_combat'])
-async def combat_help(ctx):
-    """Guide des commandes de combat"""
-
-    embed = discord.Embed(
-        title="⚔️ Guide du Système de Combat",
+        title="🤖 Commandes du Bot RPG Discord",
+        description="Voici toutes les commandes slash disponibles:",
         color=0x0099ff
     )
 
     embed.add_field(
-        name="🎯 Démarrer un Combat",
-        value="`!defier @joueur` - Défier un joueur\n`!choisir_personnage <nom>` - Sélectionner son personnage\n`!objectif <1-3>` - Choisir l'objectif de victoire\n`!pfc <pierre/feuille/ciseaux>` - Déterminer l'ordre",
+        name="👤 Gestion des Personnages",
+        value="`/creer_personnage` - Créer un personnage\n`/stats` - Voir les statistiques\n`/mes_personnages` - Lister vos personnages",
         inline=False
     )
 
     embed.add_field(
-        name="🎮 Actions de Combat",
-        value="`!attaque` - Attaque basique (100 dégâts de base)\n`!competence <nom>` - Utiliser une compétence\n`!defense` - Se défendre (réduit les dégâts de 50%)\n`!mes_competences` - Voir ses compétences",
+        name="⚔️ Combat",
+        value="`/defier` - Défier un joueur\n`/choisir_personnage` - Choisir son personnage\n`/competence` - Utiliser une compétence",
         inline=False
     )
 
     embed.add_field(
-        name="🔥 États Spéciaux",
-        value="`!bloodlust` - Entrer en bloodlust (jauge vide uniquement)\n`!forfait` - Abandonner le combat",
+        name="📊 Informations",
+        value="Utilisez les boutons pendant les combats pour les actions (Attaque, Défense, Bloodlust, Forfait)",
         inline=False
     )
 
-    embed.add_field(
-        name="🎯 Objectifs de Victoire",
-        value="1️⃣ **K.O.** - Réduire les PV adverses à 0\n2️⃣ **Vider Pouvoir** - Vider la jauge de pouvoir adverse\n3️⃣ **Bloodlust** - Forcer l'adversaire à consommer son bloodlust",
-        inline=False
-    )
+    await ctx.respond(embed=embed)
 
-    embed.add_field(
-        name="🎪 Catégories de Compétences",
-        value="🗡️ **Attaque** - Dégâts x1,5, coût 10%, cooldown 1\n💪 **Bonus** - Prochaine attaque +30%, coût 15%, cooldown 2\n🛡️ **Malus** - Prochaine attaque adverse -30%, coût 15%, cooldown 2\n⏸️ **Restreinte** - Fait sauter un tour, dégâts x0.8, coût 20%, cooldown 3",
-        inline=False
-    )
-
-    await ctx.send(embed=embed)
-
-@bot.command(name='talents', aliases=['talent_info'])
-async def talent_info(ctx):
-    """Informations sur les talents et leurs interactions"""
-
-    embed = discord.Embed(
-        title="🎭 Système de Talents",
-        description="Les talents donnent des avantages/désavantages en combat (+10% ou -10% de dégâts)",
-        color=0xffa500
-    )
-
-    embed.add_field(
-        name="⚡ Yeux de Dieu",
-        value="**Avantage contre:** Dieu de la Vitesse\n**Désavantage contre:** Overpowered",
-        inline=True
-    )
-
-    embed.add_field(
-        name="💨 Dieu de la Vitesse", 
-        value="**Avantage contre:** Inégalé\n**Désavantage contre:** Yeux de Dieu",
-        inline=True
-    )
-
-    embed.add_field(
-        name="⭐ Inégalé",
-        value="**Avantage contre:** Forteresse\n**Désavantage contre:** Dieu de la Vitesse", 
-        inline=True
-    )
-
-    embed.add_field(
-        name="🛡️ Forteresse",
-        value="**Avantage contre:** Overpowered\n**Désavantage contre:** Inégalé",
-        inline=True
-    )
-
-    embed.add_field(
-        name="💥 Overpowered", 
-        value="**Avantage contre:** Yeux de Dieu\n**Désavantage contre:** Forteresse",
-        inline=True
-    )
-
-    embed.add_field(
-        name="🔄 Cycle des Avantages",
-        value="Yeux de Dieu → Dieu de la Vitesse → Inégalé → Forteresse → Overpowered → Yeux de Dieu",
-        inline=False
-    )
-
-    await ctx.send(embed=embed)
-
-@bot.command(name='classement', aliases=['leaderboard', 'top'])
-async def leaderboard(ctx, critere: str = "niveau"):
+@bot.slash_command(name="classement", description="Afficher le classement des personnages")
+async def leaderboard(ctx, critere: discord.Option(str, choices=["niveau", "experience"]) = "niveau"):
     """Afficher le classement des personnages"""
 
-    # Récupérer tous les personnages de tous les joueurs
     cursor = db.conn.cursor()
 
-    if critere.lower() in ['niveau', 'level', 'lvl']:
+    if critere == "niveau":
         cursor.execute("""
             SELECT name, owner_id, level, talent FROM characters 
             ORDER BY level DESC, experience DESC LIMIT 10
         """)
         title = "🏆 Classement par Niveau"
-    elif critere.lower() in ['experience', 'exp', 'xp']:
+    else:
         cursor.execute("""
             SELECT name, owner_id, experience, talent FROM characters 
             ORDER BY experience DESC LIMIT 10
         """)
         title = "✨ Classement par Expérience"
-    else:
-        await ctx.send("Critères disponibles: `niveau` ou `experience`")
-        return
 
     results = cursor.fetchall()
 
     if not results:
-        await ctx.send("Aucun personnage trouvé!")
+        await ctx.respond("Aucun personnage trouvé!")
         return
 
     embed = discord.Embed(title=title, color=0xffd700)
@@ -1684,147 +1259,12 @@ async def leaderboard(ctx, critere: str = "niveau"):
             inline=False
         )
 
-    await ctx.send(embed=embed)
-
-@bot.command(name='statistiques_globales', aliases=['stats_globales'])
-async def global_stats(ctx):
-    """Afficher les statistiques globales du bot"""
-
-    cursor = db.conn.cursor()
-
-    # Compter les personnages
-    cursor.execute("SELECT COUNT(*) FROM characters")
-    total_characters = cursor.fetchone()[0]
-
-    # Compter les joueurs uniques
-    cursor.execute("SELECT COUNT(DISTINCT owner_id) FROM characters")
-    total_players = cursor.fetchone()[0]
-
-    # Niveau moyen
-    cursor.execute("SELECT AVG(level) FROM characters")
-    avg_level = cursor.fetchone()[0] or 0
-
-    # Personnage avec le plus haut niveau
-    cursor.execute("SELECT name, level FROM characters ORDER BY level DESC, experience DESC LIMIT 1")
-    top_char = cursor.fetchone()
-
-    # Distribution des talents
-    cursor.execute("SELECT talent, COUNT(*) FROM characters GROUP BY talent")
-    talent_distribution = cursor.fetchall()
-
-    embed = discord.Embed(
-        title="📊 Statistiques Globales du Bot",
-        color=0x00ff7f
-    )
-
-    embed.add_field(name="👥 Joueurs Total", value=str(total_players), inline=True)
-    embed.add_field(name="🎭 Personnages Total", value=str(total_characters), inline=True)
-    embed.add_field(name="📈 Niveau Moyen", value=f"{avg_level:.1f}", inline=True)
-
-    if top_char:
-        embed.add_field(name="🏆 Plus Haut Niveau", value=f"{top_char[0]} (Niv. {top_char[1]})", inline=True)
-
-    if talent_distribution:
-        talent_text = "\n".join([f"{talent}: {count}" for talent, count in talent_distribution])
-        embed.add_field(name="🎯 Distribution des Talents", value=talent_text, inline=False)
-
-    await ctx.send(embed=embed)
-
-@bot.command(name='supprimer_personnage', aliases=['delete_char'])
-async def delete_character(ctx, *, nom_personnage: str):
-    """Supprimer un de vos personnages"""
-
-    character = db.get_character(nom_personnage, ctx.author.id)
-    if not character:
-        await ctx.send(f"Vous n'avez pas de personnage nommé **{nom_personnage}**.")
-        return
-
-    # Demander confirmation
-    confirm_embed = discord.Embed(
-        title="⚠️ Confirmation de Suppression",
-        description=f"Êtes-vous sûr de vouloir supprimer **{nom_personnage}** ?\n\n**Cette action est irréversible!**",
-        color=0xff4444
-    )
-    confirm_embed.add_field(name="Pour confirmer", value="Tapez `CONFIRMER` dans les 30 secondes", inline=False)
-
-    await ctx.send(embed=confirm_embed)
-
-    try:
-        confirmation = await bot.wait_for('message',
-                                        check=lambda m: m.author == ctx.author and m.channel == ctx.channel,
-                                        timeout=30.0)
-
-        if confirmation.content.upper() == "CONFIRMER":
-            db.delete_character(nom_personnage, ctx.author.id)
-            await ctx.send(f"✅ **{nom_personnage}** a été supprimé.")
-        else:
-            await ctx.send("❌ Suppression annulée.")
-    except asyncio.TimeoutError:
-        await ctx.send("⏰ Temps écoulé. Suppression annulée.")
-
-@bot.command(name='commandes', aliases=['aide'])
-async def show_commands(ctx):
-    """Afficher toutes les commandes disponibles"""
-
-    embed = discord.Embed(
-        title="🤖 Commandes du Bot RPG Discord",
-        description="Voici toutes les commandes disponibles:",
-        color=0x0099ff
-    )
-
-    embed.add_field(
-        name="👤 Gestion des Personnages",
-        value="`!creer_personnage <nom>` - Créer un personnage\n`!stats <nom>` - Voir les statistiques\n`!mes_personnages` - Lister vos personnages\n`!ajouter_competence <nom>` - Ajouter une compétence\n`!supprimer_personnage <nom>` - Supprimer un personnage",
-        inline=False
-    )
-
-    embed.add_field(
-        name="⚔️ Combat",
-        value="`!defier @joueur` - Défier un joueur\n`!choisir_personnage <nom>` - Choisir son personnage\n`!objectif <1-3>` - Choisir l'objectif\n`!pfc <choix>` - Pierre-feuille-ciseaux\n`!attaque` - Attaque basique\n`!competence <nom>` - Utiliser une compétence\n`!defense` - Se défendre\n`!bloodlust` - Entrer en bloodlust\n`!forfait` - Abandonner",
-        inline=False
-    )
-
-    embed.add_field(
-        name="📊 Informations",
-        value="`!aide_combat` - Guide du combat\n`!talents` - Infos sur les talents\n`!classement <critère>` - Classement\n`!statistiques_globales` - Stats du bot\n`!mes_competences` - Compétences en combat",
-        inline=False
-    )
-
-    embed.add_field(
-        name="⚙️ Administration",
-        value="`!admin_modifier <nom> <attribut> <valeur>` - Modifier un personnage (admin seulement)",
-        inline=False
-    )
-
-    await ctx.send(embed=embed)
-
-# ========== GESTION DES ERREURS ==========
-
-@admin_modify.error
-async def admin_modify_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Vous devez être administrateur pour utiliser cette commande.")
-
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound):
-        await ctx.send("❌ Commande non trouvée! Utilisez `!aide` pour voir toutes les commandes.")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f"❌ Argument manquant! Utilisez `!aide` pour voir la syntaxe correcte.")
-    elif isinstance(error, commands.BadArgument):
-        await ctx.send("❌ Argument invalide! Vérifiez la syntaxe de la commande.")
-    elif isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Vous n'avez pas les permissions nécessaires pour cette commande.")
-    else:
-        print(f"Erreur non gérée: {error}")
-        await ctx.send("❌ Une erreur inattendue s'est produite.")
-
-# ========== POINT D'ENTRÉE ==========
+    await ctx.respond(embed=embed)
 
 if __name__ == "__main__":
-    print("🚀 Démarrage du Bot RPG Discord...")
+    print("🚀 Démarrage du Bot RPG Discord avec commandes slash...")
     print("📝 N'oubliez pas de remplacer 'VOTRE_TOKEN_ICI' par votre vrai token Discord!")
-    print("🔧 Assurez-vous d'avoir installé discord.py: pip install discord.py")
+    print("🔧 Commandes slash activées - utilisez / au lieu de !")
 
     try:
         bot.run(TOKEN)
