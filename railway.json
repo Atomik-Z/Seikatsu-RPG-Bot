@@ -1,0 +1,8 @@
+{
+  "build": {
+    "dockerfilePath": "Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "python discord_rpg_bot_complet.py"
+  }
+}
