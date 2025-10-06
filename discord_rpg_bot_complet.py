@@ -1762,7 +1762,7 @@ async def delete_character(ctx, *, nom_personnage: str):
     except asyncio.TimeoutError:
         await ctx.send("⏰ Temps écoulé. Suppression annulée.")
 
-@bot.command(name='commandes', aliases=['aide', 'help'])
+@bot.command(name='commandes', aliases=['aide'])
 async def show_commands(ctx):
     """Afficher toutes les commandes disponibles"""
 
