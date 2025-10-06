@@ -14,7 +14,10 @@ from enum import Enum
 TOKEN = os.environ.get('DISCORD_TOKEN')  # Remplacez par votre token Discord
 intents = discord.Intents.default()
 intents.message_content = True
-bot = discord.Bot(intents=intents)
+intents.message_content = True
+intents.members = True
+
+bot = commands.Bot(command_prefix='!', intents=intents)
 
 # Enums et classes de données (identiques)
 class SkillCategory(Enum):
